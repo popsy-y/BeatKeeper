@@ -1,41 +1,94 @@
 class Keeper{
-    private int elapsed, barInterval, barIdx, bpm;
+    private int barIdx, beatStep;
 
-    private float offset;
+    private float bpm, elapsed, barInterval, beatInterval, offset;
 
-    Keeper(float bpm){
-        elapsed = 0;
-        barIdx = 0;
+    private float[] beatPoints;
 
-        offset = 0;
-
-        this.barInterval = round((60 * 1000) / bpm);
+    public float getHeadPosition() {
+        return wrapBeatPoint(this.elapsed + this.offset) / this.barInterval;
     }
 
-    public boolean update(int delta) {
-        elapsed += delta;
+    public int getBeatStep() {
+        return this.beatStep;
+    }
 
-        if (elapsed > this.barInterval) {
+    Keeper(float bpm){
+        this.elapsed = 0;
+        this.barIdx = 0;
+
+        this.offset = 0;
+
+        this.beatStep = 0;
+
+        refreshBpm(bpm);
+    }
+
+    public void update(int delta) {
+        float now = this.elapsed + delta;
+        float shifted = wrapBeatPoint(now + this.offset);
+        
+        int b = onBeat(this.elapsed, delta);
+        if (b != -1) {
+            this.beatStep = b;
+        }
+
+        if (now > this.barInterval) {
             if (logBeat) {
-                println("beat " + barIdx % bars + " " + barIdx);
+                println("bar " + barIdx);
             }
 
             this.barIdx++;
 
-            elapsed = max(elapsed - this.barInterval, 0);
-
-            return true;
+            this.elapsed = max(this.elapsed - this.barInterval, 0);
         }
 
-        return false;
+
+        this.elapsed += delta;
     }
 
-    public void setBpm(int bpm){
+    private int onBeat(float prev, float delta) {
+        for (int i = 0; i < this.beatPoints.length; ++i) {
+            float point = this.beatPoints[i];
 
+            if (
+                (prev < point && prev + delta >= point) ||
+                prev + delta > this.barInterval
+            ) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private void setBeatPoints() {
+        this.beatPoints = new float[] {
+            wrapBeatPoint(0),
+            wrapBeatPoint(this.beatInterval),
+            wrapBeatPoint(this.beatInterval * 2),
+            wrapBeatPoint(this.beatInterval * 3)
+        };
+    }
+
+    private float wrapBeatPoint(float point) {
+        return (point + this.barInterval) % this.barInterval;
+    }
+
+    public void refreshBpm(float bpm){
+        this.bpm = bpm;
+
+        this.barInterval = (60 * 1000) / bpm * 4;
+        this.beatInterval = this.barInterval / 4;
+
+        setBeatPoints();
     }
 
     public void setOffset(float ofst){
+        float scaled = ofst * this.barInterval;
+        this.offset = scaled;
 
+        setBeatPoints();
     }
 
     public void tweakOffset(float delta){
